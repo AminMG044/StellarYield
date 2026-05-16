@@ -1,0 +1,33 @@
+{
+  "default_branch": "dev",
+  "branches": [
+    "codex/fix-main-ci",
+    "codex/vercel-preview-green",
+    "dev",
+    "fix/1557-sdk-deposit-fixtures",
+    "main",
+    "origin",
+    "revert-1207-feat/issues-869-865-1043-1067",
+    "validate/1557-sdk-deposit-fixtures"
+  ],
+  "parent": {
+    "codex/fix-main-ci": "dev",
+    "codex/vercel-preview-green": "dev",
+    "dev": null,
+    "fix/1557-sdk-deposit-fixtures": "dev",
+    "main": "dev",
+    "origin": "dev",
+    "revert-1207-feat/issues-869-865-1043-1067": "dev",
+    "validate/1557-sdk-deposit-fixtures": "dev"
+  },
+  "order": [
+    "dev",
+    "codex/fix-main-ci",
+    "codex/vercel-preview-green",
+    "fix/1557-sdk-deposit-fixtures",
+    "main",
+    "origin",
+    "revert-1207-feat/issues-869-865-1043-1067",
+    "validate/1557-sdk-deposit-fixtures"
+  ]
+}
