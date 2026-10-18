@@ -8,6 +8,7 @@ import {
   type RawTaxTransaction,
 } from "../services/export";
 import { exportService } from "../services/exportService";
+import { sendError } from "../utils/errorResponse";
 import { sendExportError } from "../utils/errorResponse";
 import { validateWalletAddress } from "../middleware/validation";
 import { safeWalletId } from "../utils/redact";
@@ -193,6 +194,12 @@ exportRouter.get(
       if (idempotencyKey) {
         const check = exportService.checkIdempotency(idempotencyKey, idempotencyParams);
         if (check.status === "mismatch") {
+          sendError(
+            res,
+            422,
+            "IDEMPOTENCY_KEY_MISMATCH",
+            "The idempotency key has already been used with different parameters.",
+          );
           sendExportError(res, null, {
             statusCode: 422,
             code: "IDEMPOTENCY_KEY_MISMATCH",

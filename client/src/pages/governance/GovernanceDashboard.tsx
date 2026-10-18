@@ -7,6 +7,7 @@ import PendingTransactionCard from "./PendingTransactionCard";
 import GovernanceForecast from "./GovernanceForecast";
 import ProposalAttachments from "./ProposalAttachments";
 import type { GovernanceConfig, PendingTransaction } from "./types";
+import { RouterUpgradePanel } from "../../features/router_upgrade";
 import { serializeSignerRotationAuditCsv } from "./signerRotationAudit";
 
 export default function GovernanceDashboard() {
@@ -263,6 +264,12 @@ export default function GovernanceDashboard() {
         />
       )}
 
+      {/* Router Upgrade Verification & Invocation Dry-Run */}
+      {isSigner && (
+        <div className="mt-6">
+          <RouterUpgradePanel />
+        </div>
+      )}
       {/* Proposal Attachments */}
       {isSigner && <ProposalAttachments />}
 

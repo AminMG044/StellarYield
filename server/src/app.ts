@@ -72,6 +72,7 @@ import momentumRouter from "./routes/momentum";
 import queueRouter from "./routes/queue";
 import vaultActivityRouter from "./routes/vaultActivity";
 import watchlistRouter from "./routes/watchlist";
+import routerUpgradeRouter from "./routes/routerUpgrade";
 import migrationReadinessRouter from "./routes/migrationReadiness";
 import reconciliationRouter from "./routes/reconciliation";
 import driftRouter from "./routes/drift";
@@ -209,6 +210,7 @@ export function createApp() {
   app.use("/api/contracts", contractsRouter);
   app.use("/api/vaults/activity", vaultActivityRouter);
   app.use("/api/watchlist", watchlistRouter);
+  app.use("/api/router-upgrade", routerUpgradeRouter);
   app.use("/api/reconciliation", reconciliationRouter);
   app.use("/api/drift", driftRouter);
   app.use("/api/portfolio", portfolioMovementRouter);
