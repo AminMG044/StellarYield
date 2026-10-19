@@ -8,8 +8,6 @@ contracts/target/
 **/test_snapshots/
 **/__snapshots__/
 dist/
-.env
-.env.*
 !.env.example
 .claude/
 .agents/
@@ -38,7 +36,6 @@ server/audit-logs/
 backend/keepers/audit-logs/
 
 # ── Local env overrides ───────────────────────────────────────────────────────
-.env.local
 .env.*.local
 
 # ── Editor and OS artifacts ───────────────────────────────────────────────────
@@ -51,3 +48,5 @@ Thumbs.db
 junit.xml
 test-results/
 *.snap
+config.bat
+node_modules
