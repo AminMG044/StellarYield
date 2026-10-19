@@ -29,6 +29,7 @@ import { parseSmokeRunResult } from "./smokeResults";
 import VaultReliabilityPanel from "./VaultReliabilityPanel";
 import VaultSharePriceReconcilePanel from "../../features/vault_share_price/VaultSharePriceReconcilePanel";
 import AuditReplayReportPanel from "./AuditReplayReportPanel";
+import SorobanRpcFailoverPanel from "../../components/SorobanRpcFailoverPanel";
 import RegistryDiffPage from "./RegistryDiff";
 import DeploymentManifestVerifier from "../../components/DeploymentManifestVerifier";
 import registryJson from "../../../../contracts/registry.json";
@@ -381,6 +382,7 @@ export default function TransparencyDashboard() {
                 </ResponsiveContainer>
             </div>
 
+            <SorobanRpcFailoverPanel />
             {healthSummary && (
                 <div
                     className="glass-panel rounded-2xl p-6"
