@@ -3,7 +3,7 @@
  * Drag-slider allocation UI for distributing capital across multiple vaults
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { Zap, AlertCircle, CheckCircle2 } from "lucide-react";
 import TxStatusTimeline from "../../components/transaction/TxStatusTimeline";
 import type { TxPhase } from "../../services/transactionPhase";
@@ -17,6 +17,8 @@ import {
 } from "./portfolioUtils";
 import RebalancePreview from "./RebalancePreviewPanel";
 import AllocationDeltaPreview from "./AllocationDeltaPreview";
+import SignatureRejectionRecovery from "../wallet/SignatureRejectionRecovery";
+import { useSignatureRecovery } from "../wallet/useSignatureRecovery";
 import DustAllocationWarning from "./DustAllocationWarning";
 import { validatePortfolioDust } from "../../../../shared/types/portfolioDust";
 import { useWallet } from "../../context/useWallet";
@@ -43,7 +45,12 @@ export default function PortfolioBuilder({
   walletAddress,
   availableVaults,
 }: PortfolioBuilderProps) {
-  const { signTransaction } = useWallet();
+  const {
+    signTransaction,
+    providerId,
+    connectWallet,
+    disconnectWallet,
+  } = useWallet();
   const [totalAmount, setTotalAmount] = useState("");
   const [allocations, setAllocations] = useState<VaultAllocation[]>(() =>
     buildInitialAllocations(availableVaults),
@@ -62,6 +69,11 @@ export default function PortfolioBuilder({
   const [txPhase, setTxPhase] = useState<TxPhase>("idle");
   const [error, setError] = useState("");
   const [executeTx, setExecuteTx] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0);
+  // Index of the vault whose deposit failed, used to resume a batch after a
+  // rejected signature instead of re-depositing into vaults that succeeded.
+  const failedIndexRef = useRef(0);
+  const activeAllocationsRef = useRef<VaultAllocation[]>([]);
 
   /**
    * Confirm the current draft allocations as the new saved state.
@@ -140,6 +152,12 @@ export default function PortfolioBuilder({
     [allocations],
   );
 
+  /**
+   * Execute the current allocation batch, starting at `startIndex`.
+   * A rejected signature is classified into the typed recovery flow; retrying
+   * resumes at the failed vault so already-signed deposits are not repeated.
+   */
+  async function executeDeposits(startIndex: number) {
   const handleAutoResolveDust = useCallback(() => {
     if (!dustValidation?.suggestedAllocations) return;
 
@@ -191,10 +209,19 @@ export default function PortfolioBuilder({
         const activeAllocations = distributedAllocations.filter(
           (a) => a.amount > 0n,
         );
+        activeAllocationsRef.current = activeAllocations;
         if (activeAllocations.length === 0) {
           throw new Error("No allocations to execute");
         }
-        for (const alloc of activeAllocations) {
+
+        const resumeFrom = Math.min(startIndex, activeAllocations.length - 1);
+        if (resumeFrom === 0) {
+          failedIndexRef.current = 0;
+          setCompletedCount(0);
+        }
+
+        for (let index = resumeFrom; index < activeAllocations.length; index += 1) {
+          const alloc = activeAllocations[index];
           // Deposit into each vault with 1% slippage limit
           const minShares = (alloc.amount * 99n) / 100n;
           const res = await deposit(
@@ -206,11 +233,24 @@ export default function PortfolioBuilder({
             signTransaction,
           );
           if (!res.success) {
+            const rejection = recovery.fail(
+              res.error || `Failed to deposit into ${alloc.vaultName}`,
+            );
+            if (rejection) {
+              failedIndexRef.current = index;
+              setError("");
+              setTxPhase("failure");
+              return;
+            }
             throw new Error(
               res.error || `Failed to deposit into ${alloc.vaultName}`,
             );
           }
+          setCompletedCount(index + 1);
         }
+
+        failedIndexRef.current = 0;
+        recovery.reset();
         setTxPhase("success");
       } else {
         // Mock flow
@@ -226,14 +266,68 @@ export default function PortfolioBuilder({
         setTxPhase("polling");
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
+        recovery.reset();
         setTxPhase("success");
       }
     } catch (err) {
+      const rejection = recovery.fail(err);
       setTxPhase("failure");
-      setError(err instanceof Error ? err.message : "Deposit failed");
+      if (rejection) {
+        failedIndexRef.current = startIndex;
+        setError("");
+      } else {
+        setError(err instanceof Error ? err.message : "Deposit failed");
+      }
     }
-  }, [
+  }
+
+  const recovery = useSignatureRecovery({
+    action: "portfolio_deposit",
+    provider: providerId,
     walletAddress,
+    onRetry: () => executeDeposits(failedIndexRef.current),
+    getProgress: () => ({
+      completed: completedCount,
+      total: activeAllocationsRef.current.length,
+    }),
+  });
+
+  // Plain function (not useCallback): it must read the current render's
+  // amount, allocations, and execute toggle each time it is clicked.
+  // Resume at the failed vault if a batch was interrupted.
+  const handleExecuteDeposits = () => executeDeposits(failedIndexRef.current);
+
+  const handleRetrySignature = async () => {
+    await recovery.retry();
+  };
+
+  const handleReconnectWallet = async () => {
+    const connected = await connectWallet();
+    if (connected && recovery.rejection) {
+      // A deliberate reconnect starts a fresh attempt budget; retry directly
+      // so it also works after the automatic retry limit is reached.
+      recovery.reset();
+      await executeDeposits(failedIndexRef.current);
+    }
+  };
+
+  const handleSwitchWallet = async () => {
+    disconnectWallet();
+    const connected = await connectWallet();
+    if (connected && recovery.rejection) {
+      // Keep the partial-batch cursor: the main execute button resumes after
+      // the vault that failed rather than re-depositing earlier ones.
+      recovery.reset();
+      setTxPhase("idle");
+    }
+  };
+
+  const handleCancelRecovery = () => {
+    recovery.dismiss();
+    failedIndexRef.current = 0;
+    setCompletedCount(0);
+    setTxPhase("idle");
+  };
     totalAmountValue,
     isValid,
     executeTx,
@@ -256,7 +350,11 @@ export default function PortfolioBuilder({
           <input
             type="number"
             value={totalAmount}
-            onChange={(e) => setTotalAmount(e.target.value)}
+            onChange={(e) => {
+              setTotalAmount(e.target.value);
+              // Editing the amount invalidates the previous attempt/progress.
+              if (recovery.rejection) handleCancelRecovery();
+            }}
             placeholder="Enter amount to allocate"
             className="w-full bg-black/50 border border-gray-600 rounded-lg px-3 py-2 text-white"
           />
@@ -389,6 +487,27 @@ export default function PortfolioBuilder({
           currentAllocations={baselineAllocations}
           targetAllocations={allocations}
           disabled={!isValid}
+        />
+      )}
+
+      {/* Rejected signature recovery (#1363) */}
+      {recovery.rejection && (
+        <SignatureRejectionRecovery
+          actionLabel="deposit"
+          rejection={recovery.rejection}
+          isRetrying={recovery.isRetrying}
+          progress={
+            completedCount > 0
+              ? {
+                  completed: completedCount,
+                  total: activeAllocationsRef.current.length,
+                }
+              : undefined
+          }
+          onRetry={() => void handleRetrySignature()}
+          onReconnect={() => void handleReconnectWallet()}
+          onSwitchWallet={() => void handleSwitchWallet()}
+          onCancel={handleCancelRecovery}
         />
       )}
 
