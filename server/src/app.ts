@@ -85,6 +85,7 @@ import deltaNeutralRouter from "./routes/deltaNeutral";
 import integrationsRouter from "./routes/integrations";
 import preferencesRouter from "./routes/preferences";
 import rewardCampaignCalendarRouter from "./routes/rewardCampaignCalendar";
+import walletRecoveryRouter from "./routes/walletRecovery";
 import portfolioBuilderRouter from "./routes/portfolioBuilder";
 
 import { createAuthChallenge, verifyAuthChallenge } from "./utils/stellarAuth";
@@ -223,6 +224,7 @@ export function createApp() {
   app.use("/api/strategies/delta-neutral", deltaNeutralRouter);
   app.use("/api/google-sheets", googleSheetsRouter);
   app.use("/api/integrations", integrationsRouter);
+  app.use("/api/wallet", walletRecoveryRouter);
   app.use("/api", googleSheetsRouter);
 
   // Legacy JSON metrics (internal tooling)
